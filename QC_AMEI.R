@@ -1,3 +1,7 @@
+## Please make sure that you are using the latest code version available at
+## https://github.com/thiagoferreira53/AMEI_scripts
+
+
 rm(list = ls(all.names = TRUE))
 
 
