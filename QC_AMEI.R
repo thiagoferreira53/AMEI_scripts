@@ -22,8 +22,6 @@ data_folder <- "/Users/thiagoferreira53/Desktop/UF/-Research/AMEI/4-Spet1\ simul
 #variables_to_check <- c("SLLT",	"SLLB",	"TSLD",	"TSLX",	"TSLN")
 variables_to_check <- c("SLLT",	"SLLB",	"TSLD")
 
-
-
 max_absolute_diff <- 0.01
 
 output_error_list <- "N"
@@ -43,8 +41,8 @@ use_rds <- ""
 #SiriusQuality	SQ
 #STICS	        ST
 
-platform1 <- "DS"
-platform2 <- "DS"
+platform1 <- "SQ"
+platform2 <- "MO"
 
 ## Model name ####
 #Model	            Code
@@ -65,8 +63,8 @@ platform2 <- "DS"
 #Crop2ML-DSSAT         CS
 #Crop2ML-DSSAT-EPIC    CD
 
-model1 <- "CD"
-model2<- "DE"
+model1 <- "MO"
+model2<- "MO"
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ## DATA PROCESSING #############################################################
@@ -89,19 +87,41 @@ len_model1 <- length(file_list1)
 len_model2 <- length(file_list2)
 
 
-read_files <- function(file){
+read_files <- function(file, platform){
   print(paste0("Reading file ",file," ..."))
-  df <- read.table(file, na.strings = c("na","NA","-99",-99,"-99.000",-99.000),header = T)
+  df <- read.table(file, na.strings = c("na","NA","-99",-99,"-99.000","na ","na,", "NA,",-99.000),header = T)
+  
+  #Format the output files (increase execution time)
+  if(platform == "MO" | platform == "BI"){
+  #Editing columns names (Monica outputs has "," and changes the column names)
+  colnames(df) <- c("DATE", "SLLT", "SLLB", "TSLD", "TSLX", "TSLN")
+  
+  #removing commas from rows (Monica outputs)
+  df <- apply(df, 2, function(x) gsub(",", "", gsub("([a-zA-Z]),", "\\1 ", x)))
+  
+  #detect the actual type of the data columns
+  df <- as_tibble(df)%>% 
+    type.convert(as.is = TRUE)
+  
+  #Rounding values to three decimal (BioMa outputs has more)
+  df['TSLD'] <- round(df['TSLD'],3)
+  df['TSLX'] <- round(df['TSLX'],3)
+  df['TSLN'] <- round(df['TSLN'],3)
+  
+  }
   
   df$Subdirectory <- dirname(file)
   df$File <- basename(file)
+
+  #print(head(df))
   df
 }
 
 print("Reading data files ...")
-list_df1 <- lapply(file_list1, read_files)
-list_df2 <- lapply(file_list2, read_files)
-
+list_df1 <- lapply(file_list1, read_files, platform = platform1)
+print(paste0("Finished reading data ... Running time: ", Sys.time() - time))
+list_df2 <- lapply(file_list2, read_files, platform = platform2)
+print(paste0("Finished reading data ... Running time: ", Sys.time() - time))
 
 #print("Row binding all data files for analysis step ...")
 model1_results <- bind_rows(list_df1)
@@ -199,11 +219,9 @@ if(output_error_list=="Y"){
 #- [X] DSDS x DSCS
 #- [ ] DSDE x DSCD
 
-
 #- [X] DSDS x SQDS
 #- [X] DSSQ x SQSQ
 #- [X] DSDE x SQDE
-
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ## DATA VISUALIZATION ##########################################################
@@ -233,7 +251,5 @@ if(plotting == "Y"){
   print(paste0("Done ... ", Sys.time()))
 
 }
-
-
 
 

@@ -16,9 +16,9 @@ path_outputs <- "/Users/thiagoferreira53/Desktop/UF/-Research/AMEI/plot_outputs"
 
 #sample - lai (0,2,7); models (DS,DE,SQ,SA,MO), sites (CAQC, COCA, DEMU, FRLU, FRMO, USGA, USMA) 
 #aw (0), soil (SALO), platform (SQ)
-data <- readRDS("/Users/thiagoferreira53/Desktop/UF/-Research/AMEI/SoilTemperatureFakeData.rds")
+#data <- readRDS("/Users/thiagoferreira53/Desktop/UF/-Research/AMEI/SoilTemperatureFakeData.rds")
 
-raw_data <- data
+raw_data <- readRDS("/Users/thiagoferreira53/Desktop/SoilTemperatureRawData-SQ_1year.rds")
 
 raw_data$model_name <- NA
 
@@ -74,14 +74,12 @@ line_plot_st
 ggsave(file=paste0(path_outputs,"/line_soil_temp_over_layers.jpg"),dpi =300,line_plot_st,width = 17, height = 13)
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+#avg TSOIL across all years 
 sum_data <- raw_data %>%
-  group_by(soil_range, Date) %>%
+  group_by(soil,lai,soil_range,aw,site, model_name) %>%
   summarise(mean_TSLD=mean(TSLD),
             median_TSLD=median(TSLD))
 
-
-median_TSLD <- median(raw_data$TSLD)
 
 ggplot()+
   geom_line(data=raw_data,aes(x=as.Date(Date, format = "%Y-%m-%d"),y=TSLD-median_TSLD, color=model_name,
@@ -90,6 +88,8 @@ ggplot()+
 
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#soil temp line plot
+
 colnames(raw_data)
 
 raw_data$dayMonth <- format(as.Date(raw_data$Date),format ="%m-%d")
@@ -105,26 +105,73 @@ xlimMin = as.Date(min(sum_data$dayMonth), format = "%m-%d")
 xlimMax = as.Date(max(sum_data$dayMonth), format = "%m-%d")
 
 ggplot()+
+  geom_hline(yintercept=0)+
   geom_line(data=sum_data,aes(x=as.Date(dayMonth, format = "%m-%d"),y=mean_TSLD, color=model_name,
                               group=model_name))+
-  scale_x_date(date_breaks="1 month", date_labels = "%b", limits = as.Date(c(xlimMin, xlimMax)))+
+  scale_x_date(date_breaks="32 days", date_labels = "%b", limits = c(as.Date("01-01", format="%m%d"), as.Date("12-31", format="%m%d")))+
   ylim(-40,40)+
   facet_wrap(~soil_range,scales='free',labeller = label_wrap_gen(multi_line=FALSE))+
+  theme_bw()+
+  theme(plot.title = element_text(size = 24, face = "bold", hjust = 0.5),
+        legend.position="top",
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.text=element_text(size=14),
+        legend.title=element_blank(),
+        axis.title =element_text(size=18),
+        axis.text=element_text(size=10),
+        legend.background = element_blank(),
+        legend.spacing.x = unit(1.0, 'cm'),
+        legend.key.size = unit(2,"line"),
+        axis.text.x = element_text(angle = 20, vjust=0.8),
+        strip.text.x = element_text(size = 14))+
   ylab("Soil temperature (°C)")+
   xlab("Month")
 
 
-  geom_ribbon(aes(x = WYEAR, ymin = min, ymax = max, fill="blue"), alpha = 0.3)
-  
+#soil Tmedian (all locations) - Tmi (by model) ... using some pieces of the previous
+# dataset generated
 
+Tmedian_all_locations <- raw_data %>%
+  group_by(soil,lai,soil_range,aw, dayMonth, model_name) %>%
+  summarise(median_TSLD=median(TSLD))
 
+#calculating the deviation from the median
+sum_data$mean_TSLD[sum_data$soil=="SALO" &
+                     sum_data$lai==0 &
+                     sum_data$soil_range=="Soil layer 0-0 (cm)" &
+                     sum_data$aw==0 &
+                     sum_data$model_name == "DSSAT" &
+                     sum_data$dayMonth=="01-01"] -
+  Tmedian_all_locations$median_TSLD[Tmedian_all_locations$soil=="SALO" &
+                                      Tmedian_all_locations$lai==0 &
+                                      Tmedian_all_locations$soil_range=="Soil layer 0-0 (cm)" &
+                                      Tmedian_all_locations$aw==0 &
+                                      Tmedian_all_locations$model_name == "DSSAT" &
+                                      Tmedian_all_locations$dayMonth=="01-01"]
+
+#I stopped here ... I am having errors when estimating the deviation
+
+sum_data$TSDL_devi <- sum_data$mean_TSLD[sum_data$soil==Tmedian_all_locations$soil &
+                                 sum_data$lai==Tmedian_all_locations$lai &
+                                 sum_data$soil_range==Tmedian_all_locations$soil_range &
+                                 sum_data$aw==Tmedian_all_locations$aw &
+                                 sum_data$model_name == Tmedian_all_locations$model_name &
+                                 sum_data$dayMonth==Tmedian_all_locations$dayMonth] -
+  Tmedian_all_locations$median_TSLD[sum_data$soil==Tmedian_all_locations$soil &
+                                      sum_data$lai==Tmedian_all_locations$lai &
+                                      sum_data$soil_range==Tmedian_all_locations$soil_range &
+                                      sum_data$aw==Tmedian_all_locations$aw &
+                                      sum_data$model_name == Tmedian_all_locations$model_name &
+                                      sum_data$dayMonth==Tmedian_all_locations$dayMonth]
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# MATRIX PLOT 
+# MATRIX PLOT - Model comparison
 colnames(raw_data)
 #df <- dcast(raw_data[,c(3,4,5,6,7,17,12,18)],  Date+soil_range+soil+lai+aw+site ~ model_name)
-df <- dcast(raw_data[,c(7,12,17)],  Date ~ model_name)
-colnames(df)
+
+df <- reshape2::dcast(raw_data[,c("Date", "TSLD", "model_name")],  Date ~ model_name,  
+                      fun.aggregate = mean, value.var = "TSLD", na.rm=T)
 
 
 pair_plot <- ggpairs(df[,-1],diag = list(continuous = "blankDiag"))+
@@ -146,4 +193,3 @@ pair_plot <- ggpairs(df[,-1],diag = list(continuous = "blankDiag"))+
   ylim(-40,40)
   
 pair_plot
-?ggpairs
