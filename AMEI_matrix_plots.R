@@ -8,19 +8,20 @@ library(dplyr)
 library(GGally)
 library(reshape2)
 library(data.table)
+library(cowplot)
 
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ##INPUTS ####
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-path_output <- "/Users/thiagoferreira53/Desktop/UF/-Research/AMEI/plot_outputs"
+path_output <- "/Users/thiagoferreira53/Desktop/UF/-Research/AMEI/plot_outputs/matrix_testing/"
 
 variables <- c("Date", "TSLD", "model_name","soil_range", "soil", "site", "lai", "aw", "month_name")
 
+#path_to_rds <- NA
+path_to_rds <- "/Users/thiagoferreira53/Desktop/SoilTemperatureRawData-SQ_1year.rds"
 
-
-path_to_rds <- NA
 
 #FILL THIS ONLY IF path_to_rds == NA
 model <- "SQ"
@@ -29,7 +30,7 @@ write_rds <- TRUE
 n_rows <- 4018
 rds_file_path <- "/blue/hoogenboom/t.berton/apps/Soil_Temp_CROP2ML/SQ_data.rds"
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-# RAW DATA ####
+##RAW DATA ####
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if(!is.na(path_to_rds)){
   raw_data <- readRDS(path_to_rds)
@@ -117,7 +118,35 @@ upper_plots <- function(data,mapping){
     geom_text()+
     theme_grey()+
     theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank())
+          panel.grid.minor = element_blank(),
+          legend.position = "top")
+}
+
+
+upper_plots2 <- function(data,mapping){
+  ggplot(data = data, mapping = mapping)+
+    geom_abline(intercept=0, slope=1)+
+    geom_density2d()+
+    xlim(-40,40)+
+    ylim(-40,40)+
+    #ylim(limits = c(0, 1))+
+    theme_bw()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          legend.position = "top")
+}
+
+
+diag_plot <- function(data,mapping){
+  ggplot(data = data, mapping = mapping)+
+    geom_density()+
+    xlim(-40,40)+
+    ylim(0, 1)+
+    #ylim(limits = c(0, 1))+
+    theme_bw()+
+    theme(panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          legend.position = "top")
 }
 
 lower_plots <- function(data,mapping){
@@ -128,7 +157,8 @@ lower_plots <- function(data,mapping){
     ylim(-40,40)+
     theme_bw()+
     theme(panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank())
+          panel.grid.minor = element_blank(),
+          legend.position = "top")
 }
 
 df <- reshape2::dcast(raw_data[,variables], Date+soil_range+soil+lai+aw+site+month_name ~ model_name,  
@@ -146,11 +176,39 @@ plot_matrixes <- function(var_name){
   
   
   #consider only model columns
-  p_matrix <- ggpairs(df, columns = 8:14, mapping=aes(color = !!sym(var_name)), 
-                      upper = list(continuous = wrap("cor", size = 3, cex = 3, text.width=1)),
+  p_matrix <- ggpairs(df, columns = 8:15, mapping=aes(color = !!sym(var_name)), 
+                      #upper = list(continuous = wrap("density", alpha = 0.5), combo = "box_no_facet"),
+                      upper = list(continuous = wrap(upper_plots2)),
                       lower = list(continuous = wrap(lower_plots)),
-                      diag = list(continuous = "blankDiag"))
+                      diag = list(continuous = wrap(diag_plot)),
+                      #diag = list(continuous = "blankDiag")
+                      legends=1)+
+  theme(legend.position = "top") + 
+  labs(fill = var_name, color = var_name)
   #scale_color_manual(values = my_colors)
+  
+  title_plot <- ""
+  if(var_name == "aw"){
+    title_plot <- "Water available"
+  }else if(var_name == "soil"){
+    title_plot <- "Soil type"
+  }else if(var_name == "lai"){
+    title_plot <- "Leaf area index"
+  }else if(var_name == "site"){
+    title_plot <- "Site"
+  }
+  
+  legend_plot <- cowplot::get_legend(
+    ggplot(df)+
+    geom_point(aes(x=DSSAT, y=SiriusQuality, color = !!sym(var_name)))+
+      guides(color = guide_legend(title = title_plot))+
+    theme(legend.position = "top",
+          legend.key=element_blank(),
+          legend.title = element_text(size=18),
+          legend.text = element_text(size=16))
+    )
+  
+  p_matrix <- cowplot::plot_grid(legend_plot, ggmatrix_gtable(p_matrix), nrow = 2, rel_heights = c(0.05, 0.95))
   
   fileN <- paste0(path_output,"/matrix_plots_colored_by_",var_name,".jpg")
   
@@ -160,5 +218,5 @@ plot_matrixes <- function(var_name){
 }
 
 lapply(variable_list, plot_matrixes)
-
+#plot_matrixes(variable_list[5])
 
